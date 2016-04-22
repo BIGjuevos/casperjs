@@ -90,6 +90,7 @@ var Casper = function Casper(options) {
     }
     // default options
     this.defaults = {
+        autostart:           true,
         clientScripts:       [],
         colorizerType:       'Colorizer',
         exitOnError:         true,
@@ -1532,6 +1533,11 @@ Casper.prototype.resourceExists = function resourceExists(test) {
     return this.resources.some(testFn);
 };
 
+Casper.prototype.resumeExecution = function resumeExecution(onComplete, time) {
+    this.emit('run.start');
+    this.checker = setInterval(this.checkStep, (time ? time: this.options.retryTimeout), this, onComplete);
+};
+
 /**
  * Runs the whole suite of steps.
  *
@@ -1546,8 +1552,11 @@ Casper.prototype.run = function run(onComplete, time) {
         throw new CasperError('No steps defined, aborting');
     }
     this.log(f("Running suite: %d step%s", this.steps.length, this.steps.length > 1 ? "s" : ""), "info");
-    this.emit('run.start');
-    this.checker = setInterval(this.checkStep, (time ? time: this.options.retryTimeout), this, onComplete);
+
+    if ( this.options.autostart ) {
+        this.resumeExecution(onComplete, time);
+    }
+
     return this;
 };
 
@@ -1783,6 +1792,12 @@ Casper.prototype.status = function status(asString) {
     return asString === true ? utils.dump(currentStatus) : currentStatus;
 };
 
+Casper.prototype.stepForward = function stepForward() {
+    "use strict";
+
+    this.checkStep(this);
+};
+
 /**
  * Schedules the next step in the navigation process.
  *
@@ -1814,6 +1829,23 @@ Casper.prototype.then = function then(step) {
         this.steps.splice(insertIndex, 0, step);
     }
     this.emit('step.added', step);
+    return this;
+};
+
+/**
+ * Causes execution of casper to stop executing steps, and return control
+ * the executing test script
+ *
+ * @return Casper
+ */
+Casper.prototype.thenBreak = function thenBreak() {
+    "use strict";
+
+    this.checkStarted();
+    this.then(function _ret() {
+        return;
+    });
+
     return this;
 };
 
